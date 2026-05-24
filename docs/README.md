@@ -8,6 +8,7 @@ The goal is to help readers connect the thesis/book concepts to the runnable pro
 
 - [Experiment guide](experiment-guide.md): Steps for reproducing the Streamlit training workflow.
 - [Dataset format](dataset-format.md): Expected honeypot log schema and sample event structure.
+- [Book Proposal](book-proposal.md): Publisher-ready overview, audience, outline, and sample chapter plan.
 
 ## Suggested Reader Flow
 
