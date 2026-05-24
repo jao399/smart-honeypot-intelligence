@@ -17,13 +17,13 @@ if errorlevel 1 (
 )
 
 echo [1/3] Installing dependencies...
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 if errorlevel 1 (
     echo Error: Failed to install dependencies
     pause
     exit /b 1
 )
-echo ✓ Dependencies installed successfully
+echo [OK] Dependencies installed successfully
 
 echo.
 echo [2/3] Verifying data files...
@@ -33,7 +33,7 @@ if not exist "data\" (
 if not exist "snapshots\" (
     echo Warning: snapshots folder not found
 )
-echo ✓ File verification complete
+echo [OK] File verification complete
 
 echo.
 echo [3/3] Starting application...

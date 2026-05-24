@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this research software, please cite it using these metadata."
+title: "Smart Honeypot Intelligence"
+type: software
+authors:
+  - name: "Amjad"
+repository-code: "https://github.com/jao399/smart-honeypot-intelligence"
+url: "https://github.com/jao399/smart-honeypot-intelligence"
+abstract: "AI-powered smart honeypot research project using reinforcement learning, Q-learning, and human-in-the-loop feedback for adaptive cyber deception."
+keywords:
+  - cybersecurity
+  - honeypot
+  - reinforcement-learning
+  - q-learning
+  - human-in-the-loop
+  - threat-intelligence
+  - cyber-deception
+  - streamlit
+  - python
+  - ai-security
+license: MIT
+version: 1.0.0
+date-released: "2026-05-24"
+references:
+  - type: thesis
+    title: "Smart Honeypot System Using Reinforcement Learning and Human Feedback"
+    authors:
+      - name: "Amjad"
+    institution:
+      name: "Asia Pacific University of Technology & Innovation"
+    year: 2025

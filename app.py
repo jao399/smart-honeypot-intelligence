@@ -14,15 +14,19 @@ import seaborn as sns
 # CONFIG
 # -----------------------------
 st.set_page_config(
-    page_title="Smart Smart Honeypot — RL + HITL",
+    page_title="Smart Honeypot Intelligence - RL + HITL",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 DATA_PATH_DEFAULT = "data/honeypots.json"
 AGENT_SNAPSHOT_DIR = "snapshots"
 # Directory where this script lives (fallback to cwd if __file__ not available)
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.getcwd()
+SCRIPT_DIR = (
+    os.path.dirname(os.path.abspath(__file__))
+    if "__file__" in globals()
+    else os.getcwd()
+)
 DEFAULT_DATA_PATH_ABS = os.path.join(SCRIPT_DIR, DATA_PATH_DEFAULT)
 # Ensure snapshot dir is absolute relative to the script directory so
 # saves/loads don't depend on the current working directory.
@@ -31,6 +35,7 @@ os.makedirs(AGENT_SNAPSHOT_DIR_ABS, exist_ok=True)
 
 TIME_FMT = "%Y-%m-%dT%H:%M:%S.%f"
 
+
 def sanitize_df(df: pd.DataFrame) -> pd.DataFrame:
     safe_df = df.copy()
     for col in safe_df.columns:
@@ -38,6 +43,7 @@ def sanitize_df(df: pd.DataFrame) -> pd.DataFrame:
             lambda x: json.dumps(x) if isinstance(x, (dict, list)) else x
         )
     return safe_df
+
 
 # -----------------------------
 # Utilities: load + parse JSON
@@ -51,12 +57,17 @@ def load_json(path):
         else:
             return [json.loads(line) for line in f]
 
+
 def safe_int(x, default=None):
-    try: return int(x)
-    except: return default
+    try:
+        return int(x)
+    except:
+        return default
+
 
 def parse_time(ts):
-    if ts is None: return None
+    if ts is None:
+        return None
     for fmt in (TIME_FMT, "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"):
         try:
             return datetime.strptime(ts, fmt)
@@ -68,6 +79,7 @@ def parse_time(ts):
     except:
         return None
 
+
 # -----------------------------
 # Data preparation & sessionize
 # -----------------------------
@@ -76,20 +88,30 @@ def load_and_prepare(path, session_gap_minutes=15):
     rows = load_json(path)
     df = pd.DataFrame(rows)
     # Ensure required columns exist
-    for col in ["timestamp","src_ip","dest_port","protocol","action","src_port","dest_ip"]:
+    for col in [
+        "timestamp",
+        "src_ip",
+        "dest_port",
+        "protocol",
+        "action",
+        "src_port",
+        "dest_ip",
+    ]:
         if col not in df.columns:
             df[col] = None
     df["ts"] = df["timestamp"].apply(parse_time)
     # fill missing or bad times with increasing times
     if df["ts"].isnull().any():
-        base = datetime(2023,1,1)
+        base = datetime(2023, 1, 1)
         null_mask = df["ts"].isnull()
         idxs = np.where(null_mask)[0]
         for i, idx in enumerate(idxs):
             df.at[idx, "ts"] = base + timedelta(seconds=i)
     df["dest_port"] = df["dest_port"].apply(lambda v: safe_int(v, v))
     df["src_port"] = df["src_port"].apply(lambda v: safe_int(v, v))
-    df["service"] = df.apply(lambda r: infer_service(r.get("protocol"), r.get("dest_port")), axis=1)
+    df["service"] = df.apply(
+        lambda r: infer_service(r.get("protocol"), r.get("dest_port")), axis=1
+    )
     df["src_ip"] = df["src_ip"].astype(str)
     df = df.sort_values("ts").reset_index(drop=True)
     # sessionize by src_ip
@@ -107,26 +129,37 @@ def load_and_prepare(path, session_gap_minutes=15):
     df["session_id"] = sess_ids
     return df
 
+
 def infer_service(protocol, dest_port):
     p = str(protocol).lower() if protocol else ""
     port = safe_int(dest_port, -1)
-    if p == "ssh" or port == 22: return "ssh"
-    if p in ("http","https") or port in (80,8080,443): return "http"
-    if p == "ftp" or port == 21: return "ftp"
+    if p == "ssh" or port == 22:
+        return "ssh"
+    if p in ("http", "https") or port in (80, 8080, 443):
+        return "http"
+    if p == "ftp" or port == 21:
+        return "ftp"
     return "other"
+
 
 # -----------------------------
 # State buckets & helpers
 # -----------------------------
 def bucket_intensity(n):
-    if n <= 2: return "low"
-    if n <= 6: return "med"
+    if n <= 2:
+        return "low"
+    if n <= 6:
+        return "med"
     return "high"
 
+
 def bucket_recency(minutes):
-    if minutes is None: return "new"
-    if minutes < 60: return "warm"
+    if minutes is None:
+        return "new"
+    if minutes < 60:
+        return "warm"
     return "frequent"
+
 
 def state_from_event(event, ip_stats):
     service = event["service"]
@@ -134,13 +167,21 @@ def state_from_event(event, ip_stats):
     now = event["ts"]
     cnt = ip_stats[ip].get("recent_count", 0)
     last_seen = ip_stats[ip].get("last_seen", None)
-    rec_min = (now - last_seen).total_seconds()/60.0 if last_seen else None
+    rec_min = (now - last_seen).total_seconds() / 60.0 if last_seen else None
     return (service, bucket_intensity(cnt), bucket_recency(rec_min))
+
 
 # -----------------------------
 # Environment
 # -----------------------------
-ACTIONS = ["default","banner_variation","latency_add","decoy_port_toggle","error_style_flip"]
+ACTIONS = [
+    "default",
+    "banner_variation",
+    "latency_add",
+    "decoy_port_toggle",
+    "error_style_flip",
+]
+
 
 class HoneypotEnv:
     def __init__(self, df, w1=1.0, w2=0.5, w3=0.2):
@@ -149,14 +190,20 @@ class HoneypotEnv:
         self._epi_idx = -1
         self.w1, self.w2, self.w3 = w1, w2, w3
         self.human_feedback = 0.0
-        self.ip_stats = defaultdict(lambda: {"last_seen": None, "recent": deque(maxlen=50)})
+        self.ip_stats = defaultdict(
+            lambda: {"last_seen": None, "recent": deque(maxlen=50)}
+        )
         self._build_session_map()
         # metrics for visualization
         self.history = []
 
     def _build_session_map(self):
-        self.by_session = {sid: self.df[self.df["session_id"]==sid].sort_values("ts").reset_index(drop=True)
-                           for sid in self._episodes}
+        self.by_session = {
+            sid: self.df[self.df["session_id"] == sid]
+            .sort_values("ts")
+            .reset_index(drop=True)
+            for sid in self._episodes
+        }
 
     def reset(self):
         self._epi_idx = (self._epi_idx + 1) % len(self._episodes)
@@ -184,20 +231,22 @@ class HoneypotEnv:
         action = ACTIONS[action_idx]
         r = self._reward(ev, action) + self.human_feedback
         # logging for analysis
-        self.history.append({
-            "session": self.cur_sid,
-            "event_idx": self.ptr-1,
-            "timestamp": ev["ts"],
-            "src_ip": ev["src_ip"],
-            "service": ev["service"],
-            "action": action,
-            "reward": r,
-            "human_feedback": self.human_feedback
-        })
+        self.history.append(
+            {
+                "session": self.cur_sid,
+                "event_idx": self.ptr - 1,
+                "timestamp": ev["ts"],
+                "src_ip": ev["src_ip"],
+                "service": ev["service"],
+                "action": action,
+                "reward": r,
+                "human_feedback": self.human_feedback,
+            }
+        )
         self.human_feedback = 0.0
         done = self.ptr >= len(self.cur_df)
         obs = self._obs() if not done else None
-        info = {"session_id": self.cur_sid, "action": action, "event_idx": self.ptr-1}
+        info = {"session_id": self.cur_sid, "action": action, "event_idx": self.ptr - 1}
         return obs, r, done, info
 
     def _reward(self, ev, action):
@@ -206,7 +255,7 @@ class HoneypotEnv:
         ip = ev["src_ip"]
         recent_times = self.ip_stats[ip]["recent"]
         if len(recent_times) >= 2:
-            deltas = [(recent_times[-1]-recent_times[-2]).total_seconds()]
+            deltas = [(recent_times[-1] - recent_times[-2]).total_seconds()]
             r2 = 1.0 if np.mean(deltas) < 180 else 0.0
         else:
             r2 = 0.0
@@ -217,9 +266,10 @@ class HoneypotEnv:
             "banner_variation": 1.05,
             "latency_add": 1.02,
             "decoy_port_toggle": 1.03,
-            "error_style_flip": 1.01
+            "error_style_flip": 1.01,
         }[action]
-        return mult * (self.w1*r1 + self.w2*r2 + self.w3*r3)
+        return mult * (self.w1 * r1 + self.w2 * r2 + self.w3 * r3)
+
 
 # -----------------------------
 # Agent: Tabular Q-Learning
@@ -261,14 +311,18 @@ class QAgent:
             key = eval(k)
             self.Q[key] = np.array(v)
 
+
 # -----------------------------
 # Helper: export CSV / PNG
 # -----------------------------
 def get_table_download_link(df, filename="export.csv"):
     csv = df.to_csv(index=False).encode()
     b64 = base64.b64encode(csv).decode()
-    href = f'<a href="data:file/csv;base64,{b64}" download="{filename}">Download CSV</a>'
+    href = (
+        f'<a href="data:file/csv;base64,{b64}" download="{filename}">Download CSV</a>'
+    )
     return href
+
 
 def fig_to_png_bytes(fig):
     buf = io.BytesIO()
@@ -276,11 +330,14 @@ def fig_to_png_bytes(fig):
     buf.seek(0)
     return buf
 
+
 # -----------------------------
 # Streamlit App Layout & Logic
 # -----------------------------
 def main():
-    st.header("Smart Honeypot Intelligence - (Adaptive Defense with Reinforcement Learning and Human Feedback)")
+    st.header(
+        "Smart Honeypot Intelligence - (Adaptive Defense with Reinforcement Learning and Human Feedback)"
+    )
     st.markdown("""
     **Overview:** This platform leverages reinforcement learning and human expertise to adaptively manage honeypot interactions. By analyzing sessionized network activity and applying machine-learning-driven strategies, it enables security teams to understand attacker behavior, evaluate response effectiveness, and optimize defensive tactics.
     """)
@@ -303,22 +360,70 @@ def main():
             st.success(f"Uploaded dataset saved to temporary file: {data_path}")
         else:
             data_path = data_path_input
-        session_gap = st.number_input("Session gap (minutes)", min_value=1, max_value=720, value=15)
-        st.caption("Define the idle time (in minutes) after which a new session is created for the same source IP.")
+        session_gap = st.number_input(
+            "Session gap (minutes)", min_value=1, max_value=720, value=15
+        )
+        st.caption(
+            "Define the idle time (in minutes) after which a new session is created for the same source IP."
+        )
 
         st.subheader("RL Hyperparameters")
-        alpha = st.slider("Learning Rate (Alpha): Controls how quickly the agent updates its knowledge during training.", 0.01, 1.0, 0.2, 0.01)
-        gamma = st.slider("Discount Factor (Gamma): Balances the importance of short-term vs. long-term rewards.", 0.0, 0.999, 0.95, 0.01)
-        eps = st.slider("Exploration Rate (Epsilon): Determines how often the agent explores new actions rather than exploiting known ones.", 0.0, 1.0, 0.2, 0.01)
-        episodes = st.number_input("Episodes per Run: Number of training episodes to execute per training cycle.", 1, 2000, 20)
+        alpha = st.slider(
+            "Learning Rate (Alpha): Controls how quickly the agent updates its knowledge during training.",
+            0.01,
+            1.0,
+            0.2,
+            0.01,
+        )
+        gamma = st.slider(
+            "Discount Factor (Gamma): Balances the importance of short-term vs. long-term rewards.",
+            0.0,
+            0.999,
+            0.95,
+            0.01,
+        )
+        eps = st.slider(
+            "Exploration Rate (Epsilon): Determines how often the agent explores new actions rather than exploiting known ones.",
+            0.0,
+            1.0,
+            0.2,
+            0.01,
+        )
+        episodes = st.number_input(
+            "Episodes per Run: Number of training episodes to execute per training cycle.",
+            1,
+            2000,
+            20,
+        )
         st.subheader("Reward Weights")
-        w1 = st.number_input("Session Length (w1): Prioritize keeping attackers engaged longer.", 0.0, 10.0, 1.0, 0.1)
-        w2 = st.number_input("Follow-up Activity (w2): Reward repeated interactions from the same source IP.", 0.0, 10.0, 0.5, 0.1)
-        w3 = st.number_input("Service Diversity (w3): Encourage interactions across multiple services.", 0.0, 10.0, 0.2, 0.1)
+        w1 = st.number_input(
+            "Session Length (w1): Prioritize keeping attackers engaged longer.",
+            0.0,
+            10.0,
+            1.0,
+            0.1,
+        )
+        w2 = st.number_input(
+            "Follow-up Activity (w2): Reward repeated interactions from the same source IP.",
+            0.0,
+            10.0,
+            0.5,
+            0.1,
+        )
+        w3 = st.number_input(
+            "Service Diversity (w3): Encourage interactions across multiple services.",
+            0.0,
+            10.0,
+            0.2,
+            0.1,
+        )
 
         st.markdown("---")
         st.write("Agent snapshots (save/load)")
-        snapshot_name = st.text_input("Snapshot Name: Provide a name for saving or loading agent state snapshots.", value="agent_snapshot")
+        snapshot_name = st.text_input(
+            "Snapshot Name: Provide a name for saving or loading agent state snapshots.",
+            value="agent_snapshot",
+        )
         if st.button("Save snapshot"):
             # Always save to the absolute snapshots folder next to the script
             path = os.path.join(AGENT_SNAPSHOT_DIR_ABS, f"{snapshot_name}.npy")
@@ -365,7 +470,9 @@ def main():
 
         st.markdown("---")
         st.write("Export")
-        st.caption("Use the Export buttons in the tabs to download charts, logs, or Q-table snapshots in CSV or PNG format for offline analysis or reporting.")
+        st.caption(
+            "Use the Export buttons in the tabs to download charts, logs, or Q-table snapshots in CSV or PNG format for offline analysis or reporting."
+        )
 
     # -------------------------
     # Load data & create env/agent
@@ -374,7 +481,12 @@ def main():
     # app still works if the working directory changed since yesterday.
     tried_paths = []
     resolved = None
-    candidates = [data_path, os.path.join(SCRIPT_DIR, data_path), os.path.join(os.getcwd(), data_path), DEFAULT_DATA_PATH_ABS]
+    candidates = [
+        data_path,
+        os.path.join(SCRIPT_DIR, data_path),
+        os.path.join(os.getcwd(), data_path),
+        DEFAULT_DATA_PATH_ABS,
+    ]
     # keep unique while preserving order
     seen = set()
     uniq_candidates = []
@@ -393,7 +505,7 @@ def main():
             pass
 
     if resolved is None:
-        st.warning("Dataset not found — please provide a valid path in the sidebar.")
+        st.warning("Dataset not found - please provide a valid path in the sidebar.")
         st.info("Paths attempted:")
         for p in tried_paths:
             st.text(p)
@@ -403,7 +515,9 @@ def main():
         st.info(f"Using dataset: {data_path}")
 
     df = load_and_prepare(data_path, session_gap_minutes=session_gap)
-    st.success(f"Loaded dataset with {len(df)} events and {df['session_id'].nunique()} sessions.")
+    st.success(
+        f"Loaded dataset with {len(df)} events and {df['session_id'].nunique()} sessions."
+    )
 
     # init session_state
     if "env" not in st.session_state or st.button("Recreate environment (reset state)"):
@@ -411,7 +525,11 @@ def main():
         st.session_state.agent = QAgent(alpha=alpha, gamma=gamma, eps=eps)
         st.session_state.train_counter = 0
         st.session_state.audit_log = []
-        st.session_state.metrics = {"episode_rewards": [], "action_counts": Counter(), "state_visits": Counter()}
+        st.session_state.metrics = {
+            "episode_rewards": [],
+            "action_counts": Counter(),
+            "state_visits": Counter(),
+        }
 
     env = st.session_state.env
     agent = st.session_state.agent
@@ -419,7 +537,7 @@ def main():
     # -------------------------
     # Top-level Controls (columns)
     # -------------------------
-    c1, c2, c3 = st.columns([2,2,3])
+    c1, c2, c3 = st.columns([2, 2, 3])
     with c1:
         st.subheader("Training Controls")
         run_train = st.button("Run Training Episodes")
@@ -454,12 +572,14 @@ def main():
                 if hf_apply_next:
                     env.human_feedback = float(hf_value)
                     # audit
-                    st.session_state.audit_log.append({
-                        "time": datetime.now(UTC),
-                        "type": "global_feedback",
-                        "value": float(hf_value),
-                        "note": st.session_state.get("analyst_note", "")
-                    })
+                    st.session_state.audit_log.append(
+                        {
+                            "time": datetime.now(UTC),
+                            "type": "global_feedback",
+                            "value": float(hf_value),
+                            "note": st.session_state.get("analyst_note", ""),
+                        }
+                    )
                 s2, r, done, info = env.step(a)
                 # update metrics for visuals
                 st.session_state.metrics["action_counts"][ACTIONS[a]] += 1
@@ -470,24 +590,28 @@ def main():
                 s = s2
                 steps += 1
             agent.episode_rewards.append(ep_reward)
-            st.session_state.env.history = [dict(x) for x in env.history] 
+            st.session_state.env.history = [dict(x) for x in env.history]
             st.session_state.train_counter += 1
             st.session_state.metrics["episode_rewards"].append(ep_reward)
-            st.session_state.audit_log.append({
-                "time": datetime.now(UTC),
-                "type": "episode_end",
-                "episode": st.session_state.train_counter,
-                "reward": ep_reward,
-                "steps": steps
-            })
+            st.session_state.audit_log.append(
+                {
+                    "time": datetime.now(UTC),
+                    "type": "episode_end",
+                    "episode": st.session_state.train_counter,
+                    "reward": ep_reward,
+                    "steps": steps,
+                }
+            )
             ep_rewards.append(ep_reward)
-        st.success(f"Completed {episodes} episodes. Most recent episode reward: {ep_rewards[-1]:.3f}")
+        st.success(
+            f"Completed {episodes} episodes. Most recent episode reward: {ep_rewards[-1]:.3f}"
+        )
 
     # -------------------------
     # Tabs: Dashboard, Train, HITL, Visuals, Exports, Audit
     # -------------------------
     st.markdown(
-    """
+        """
     <style>
     /* Make tabs larger and bolder */
     div[data-baseweb="tab"] {
@@ -509,44 +633,54 @@ def main():
     }
     </style>
     """,
-    unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
 
-# -----------------------------
-# TAB DEFINITIONS
-# -----------------------------
-    tabs = st.tabs([
-        "Overview",
-        "Training",
-        "HITL Feedback",
-        "Visualizations",
-        "Agent / Policy",
-        "Exports",
-        "Audit Log"
-        ])
+    # -----------------------------
+    # TAB DEFINITIONS
+    # -----------------------------
+    tabs = st.tabs(
+        [
+            "Overview",
+            "Training",
+            "HITL Feedback",
+            "Visualizations",
+            "Agent / Policy",
+            "Exports",
+            "Audit Log",
+        ]
+    )
 
     ###############
     # Overview tab
     ###############
     with tabs[0]:
         st.subheader("Dataset Overview")
-        st.write(f"View key statistics and Summary data from your honeypot logs, including event counts, sessions, top IPs, and service usage trends.")
+        st.write(
+            f"View key statistics and Summary data from your honeypot logs, including event counts, sessions, top IPs, and service usage trends."
+        )
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Total events", len(df))
             st.metric("Unique sessions", df["session_id"].nunique())
         with col2:
             st.metric("Unique source IPs", df["src_ip"].nunique())
-            st.metric("Time span", f"{df['ts'].min()} → {df['ts'].max()}")
+            st.metric("Time span", f"{df['ts'].min()} to {df['ts'].max()}")
         with col3:
             st.metric("Service types", df["service"].nunique())
             st.metric("Actions types", df["action"].nunique())
 
         st.markdown("**Sample rows**")
         st.dataframe(sanitize_df(df.head(200)))
-        
+
         st.markdown("**Top source IPs**")
-        top_src = df["src_ip"].value_counts().rename_axis("src_ip").reset_index(name="events").head(20)
+        top_src = (
+            df["src_ip"]
+            .value_counts()
+            .rename_axis("src_ip")
+            .reset_index(name="events")
+            .head(20)
+        )
         st.dataframe(sanitize_df(top_src))
 
     ###############
@@ -554,13 +688,23 @@ def main():
     ###############
     with tabs[1]:
         st.subheader("Training controls & recent metrics")
-        st.write(f"Monitor reinforcement learning progress, including reward trends and recent session activity during training runs.")
-        st.write(f"Total training episodes run: {st.session_state.get('train_counter', 0)}")
+        st.write(
+            f"Monitor reinforcement learning progress, including reward trends and recent session activity during training runs."
+        )
+        st.write(
+            f"Total training episodes run: {st.session_state.get('train_counter', 0)}"
+        )
         if st.session_state.agent.episode_rewards:
             srs = pd.Series(st.session_state.agent.episode_rewards)
-            st.line_chart(srs.rolling(5,min_periods=1).mean().rename("episode_reward_moving_avg"))
+            st.line_chart(
+                srs.rolling(5, min_periods=1).mean().rename("episode_reward_moving_avg")
+            )
             st.write("Latest episode rewards (last 50)")
-            st.dataframe(pd.DataFrame({"episode_reward": st.session_state.agent.episode_rewards[-50:]}))
+            st.dataframe(
+                pd.DataFrame(
+                    {"episode_reward": st.session_state.agent.episode_rewards[-50:]}
+                )
+            )
         st.markdown("**Recent env history (events processed)**")
         if hasattr(env, "history") and env.history:
             hist_df = pd.DataFrame(env.history[-500:])
@@ -573,40 +717,59 @@ def main():
     ###############
     with tabs[2]:
         st.subheader("Human-in-the-loop Feedback Panel")
-        st.write("Provide targeted human feedback to influence agent learning. Adjust rewards for specific sessions, apply overrides, or annotate interactions for future reference.")
+        st.write(
+            "Provide targeted human feedback to influence agent learning. Adjust rewards for specific sessions, apply overrides, or annotate interactions for future reference."
+        )
         audit_log = st.session_state.get("audit_log", [])
-        notes = [a for a in audit_log if a.get("type") in ("global_feedback", "per_session_feedback")]
-        cols = st.columns([2,2,2])
+        notes = [
+            a
+            for a in audit_log
+            if a.get("type") in ("global_feedback", "per_session_feedback")
+        ]
+        cols = st.columns([2, 2, 2])
         with cols[0]:
-            selected_session = st.selectbox("Select a session to inspect (session_id)", options=list(df["session_id"].unique())[:500])
+            selected_session = st.selectbox(
+                "Select a session to inspect (session_id)",
+                options=list(df["session_id"].unique())[:500],
+            )
             if st.button("Inspect session events"):
-                sdd = df[df["session_id"]==selected_session].sort_values("ts")
+                sdd = df[df["session_id"] == selected_session].sort_values("ts")
                 if notes:
                     st.dataframe(sanitize_df(pd.DataFrame(notes).tail(50)))
         with cols[1]:
             per_fb = st.slider("Per-session feedback (-5 to +5)", -5.0, 5.0, 0.0, 0.1)
-            if st.button("Apply feedback to selected session (applies to next step for that session)"):
+            if st.button(
+                "Apply feedback to selected session (applies to next step for that session)"
+            ):
                 if not hasattr(env, "feedback_map"):
                     env.feedback_map = {}
                 env.feedback_map[selected_session] = float(per_fb)
-                st.session_state.audit_log.append({
-                    "time": datetime.now(UTC),
-                    "type": "per_session_feedback",
-                    "session": selected_session,
-                    "value": per_fb,
-                    "note": st.session_state.get("analyst_note","")
-                })
-                st.success(f"Stored feedback {per_fb} for {selected_session}. It will apply when env plays that session.")
+                st.session_state.audit_log.append(
+                    {
+                        "time": datetime.now(UTC),
+                        "type": "per_session_feedback",
+                        "session": selected_session,
+                        "value": per_fb,
+                        "note": st.session_state.get("analyst_note", ""),
+                    }
+                )
+                st.success(
+                    f"Stored feedback {per_fb} for {selected_session}. It will apply when env plays that session."
+                )
         with cols[2]:
             st.write("Manual action override (for experiments)")
-            ov_action = st.selectbox("Force action for next step (optional)", options=["none"]+ACTIONS)
+            ov_action = st.selectbox(
+                "Force action for next step (optional)", options=["none"] + ACTIONS
+            )
             if st.button("Set override for next step"):
-                env.next_action_override = None if ov_action=="none" else ov_action
-                st.session_state.audit_log.append({
-                    "time": datetime.now(UTC),
-                    "type": "manual_override",
-                    "override": ov_action
-                })
+                env.next_action_override = None if ov_action == "none" else ov_action
+                st.session_state.audit_log.append(
+                    {
+                        "time": datetime.now(UTC),
+                        "type": "manual_override",
+                        "override": ov_action,
+                    }
+                )
                 st.success(f"Next step overridden to {ov_action}")
 
         st.markdown("**Analyst notes history (last 50)**")
@@ -634,7 +797,7 @@ def main():
         selected_services = st.multiselect(
             "Select services",
             options=sorted(df["service"].unique()),
-            default=sorted(df["service"].unique())
+            default=sorted(df["service"].unique()),
         )
     with col2:
         date_range = st.date_input(
@@ -646,9 +809,9 @@ def main():
 
     # Apply filters to data
     df_filtered = df[
-        (df["service"].isin(selected_services)) &
-        (df["ts"].dt.date >= date_range[0]) &
-        (df["ts"].dt.date <= date_range[1])
+        (df["service"].isin(selected_services))
+        & (df["ts"].dt.date >= date_range[0])
+        & (df["ts"].dt.date <= date_range[1])
     ]
 
     st.info(f"Showing {len(df_filtered):,} events after filtering.")
@@ -665,12 +828,9 @@ def main():
     # -----------------------------
     # CHART TABS
     # -----------------------------
-    chart_tabs = st.tabs([
-        "Traffic Patterns",
-        "RL Training Metrics",
-        "Agent Insights",
-        "Human Feedback"
-    ])
+    chart_tabs = st.tabs(
+        ["Traffic Patterns", "RL Training Metrics", "Agent Insights", "Human Feedback"]
+    )
 
     # =============================
     # TAB 1: TRAFFIC PATTERNS
@@ -679,21 +839,32 @@ def main():
         st.subheader("Traffic Patterns")
 
         # Sessions per service
-        svc_counts = df_filtered.groupby("service")["session_id"].nunique().reset_index(name="sessions")
-        fig1 = px.bar(
-            svc_counts, x="service", y="sessions",
-            title="Sessions per Service",
-            hover_data=["sessions"], text="sessions"
+        svc_counts = (
+            df_filtered.groupby("service")["session_id"]
+            .nunique()
+            .reset_index(name="sessions")
         )
-        fig1.update_traces(texttemplate='%{text}', textposition='outside')
+        fig1 = px.bar(
+            svc_counts,
+            x="service",
+            y="sessions",
+            title="Sessions per Service",
+            hover_data=["sessions"],
+            text="sessions",
+        )
+        fig1.update_traces(texttemplate="%{text}", textposition="outside")
         st.plotly_chart(fig1, use_container_width=True)
 
         # Events over time
-        by_time = df_filtered.set_index("ts").resample("1h").size().rename("events").reset_index()
+        by_time = (
+            df_filtered.set_index("ts")
+            .resample("1h")
+            .size()
+            .rename("events")
+            .reset_index()
+        )
         fig2 = px.line(
-            by_time, x="ts", y="events",
-            title="Events Over Time (Hourly)",
-            markers=True
+            by_time, x="ts", y="events", title="Events Over Time (Hourly)", markers=True
         )
         fig2.update_xaxes(rangeslider_visible=True)
         st.plotly_chart(fig2, use_container_width=True)
@@ -702,31 +873,42 @@ def main():
         top_src = df_filtered["src_ip"].value_counts().head(top_n_ips).reset_index()
         top_src.columns = ["src_ip", "events"]
         fig4 = px.bar(
-            top_src, x="src_ip", y="events",
+            top_src,
+            x="src_ip",
+            y="events",
             title=f"Top {top_n_ips} Source IPs by Events",
-            hover_data=["events"]
+            hover_data=["events"],
         )
         st.plotly_chart(fig4, use_container_width=True)
 
         # Session length distribution
         sess_len = df_filtered.groupby("session_id").size().rename("len").reset_index()
         fig3 = px.histogram(
-            sess_len, x="len", nbins=50,
+            sess_len,
+            x="len",
+            nbins=50,
             title="Session Length Distribution",
-            marginal="box"
+            marginal="box",
         )
         st.plotly_chart(fig3, use_container_width=True)
 
         # Heatmap: service activity by hour/day
         df_filtered["hour"] = df_filtered["ts"].dt.hour
         df_filtered["dow"] = df_filtered["ts"].dt.day_name()
-        pivot = df_filtered.groupby(["service", "dow", "hour"]).size().reset_index(name="count")
+        pivot = (
+            df_filtered.groupby(["service", "dow", "hour"])
+            .size()
+            .reset_index(name="count")
+        )
         for svc in pivot["service"].unique():
             svc_df = pivot[pivot["service"] == svc]
             if not svc_df.empty:
                 fig13 = px.density_heatmap(
-                    svc_df, x="hour", y="dow", z="count",
-                    title=f"Activity Heatmap — {svc}"
+                    svc_df,
+                    x="hour",
+                    y="dow",
+                    z="count",
+                    title=f"Activity Heatmap - {svc}",
                 )
                 st.plotly_chart(fig13, use_container_width=True)
 
@@ -737,28 +919,35 @@ def main():
         st.subheader("RL Training Metrics")
 
         if st.session_state.metrics["episode_rewards"]:
-            er = pd.Series(st.session_state.metrics["episode_rewards"], name="episode_reward")
+            er = pd.Series(
+                st.session_state.metrics["episode_rewards"], name="episode_reward"
+            )
             df_er = er.reset_index().rename(columns={"index": "episode"})
             df_er["ma5"] = df_er["episode_reward"].rolling(5, min_periods=1).mean()
             fig6 = px.line(
-                df_er, x="episode", y=["episode_reward", "ma5"],
-                title="Episode Rewards and Moving Average"
+                df_er,
+                x="episode",
+                y=["episode_reward", "ma5"],
+                title="Episode Rewards and Moving Average",
             )
             st.plotly_chart(fig6, use_container_width=True)
 
             cumul = np.cumsum(st.session_state.metrics["episode_rewards"])
             fig11 = px.line(
-                x=np.arange(len(cumul)), y=cumul,
-                title="Cumulative Reward Over Training"
+                x=np.arange(len(cumul)),
+                y=cumul,
+                title="Cumulative Reward Over Training",
             )
             st.plotly_chart(fig11, use_container_width=True)
 
         ac = pd.DataFrame.from_records(
             list(st.session_state.metrics["action_counts"].items()),
-            columns=["action", "count"]
+            columns=["action", "count"],
         )
         if not ac.empty:
-            fig7 = px.bar(ac, x="action", y="count", title="Counts of Actions During Training")
+            fig7 = px.bar(
+                ac, x="action", y="count", title="Counts of Actions During Training"
+            )
             st.plotly_chart(fig7, use_container_width=True)
 
     # =============================
@@ -769,14 +958,15 @@ def main():
 
         sv = pd.DataFrame.from_records(
             [(k, v) for k, v in st.session_state.metrics["state_visits"].items()],
-            columns=["state", "visits"]
+            columns=["state", "visits"],
         )
         if not sv.empty:
             sv["state_str"] = sv["state"].apply(str)
             fig8 = px.bar(
                 sv.sort_values("visits", ascending=False).head(40),
-                x="state_str", y="visits",
-                title="Top Visited States"
+                x="state_str",
+                y="visits",
+                title="Top Visited States",
             )
             st.plotly_chart(fig8, use_container_width=True)
 
@@ -794,11 +984,15 @@ def main():
         for s, q in agent.Q.items():
             best = int(np.argmax(q))
             best_counts[ACTIONS[best]] += 1
-        bc_df = pd.DataFrame(list(best_counts.items()), columns=["action", "best_count"])
+        bc_df = pd.DataFrame(
+            list(best_counts.items()), columns=["action", "best_count"]
+        )
         if not bc_df.empty:
             fig20 = px.bar(
-                bc_df, x="action", y="best_count",
-                title="Number of States Where Action is Optimal"
+                bc_df,
+                x="action",
+                y="best_count",
+                title="Number of States Where Action is Optimal",
             )
             st.plotly_chart(fig20, use_container_width=True)
 
@@ -807,48 +1001,74 @@ def main():
     # =============================
     with chart_tabs[3]:
         st.subheader("Human Feedback")
-        fb_logs = [a for a in st.session_state.audit_log if a.get("type") in ("global_feedback", "per_session_feedback")]
+        fb_logs = [
+            a
+            for a in st.session_state.audit_log
+            if a.get("type") in ("global_feedback", "per_session_feedback")
+        ]
         if fb_logs:
             df_fb = pd.DataFrame(fb_logs)
             df_fb["time"] = pd.to_datetime(df_fb["time"])
             fig17 = px.scatter(
-                df_fb, x="time", y="value", color="type",
+                df_fb,
+                x="time",
+                y="value",
+                color="type",
                 title="Human Feedback Timeline",
-                hover_data=["value", "notes"] if "notes" in df_fb else ["value"]
+                hover_data=["value", "notes"] if "notes" in df_fb else ["value"],
             )
             st.plotly_chart(fig17, use_container_width=True)
         else:
             st.info("No human feedback logs recorded yet.")
-
 
     ###############
     # Agent / Policy tab
     ###############
     with tabs[4]:
         st.subheader("Agent / Q-table")
-        st.write("Inspect the agent’s current Q-table and review which actions are preferred for specific states to understand policy evolution.")
+        st.write(
+            "Inspect the agent's current Q-table and review which actions are preferred for specific states to understand policy evolution."
+        )
         qitems = []
-        for s,q in list(agent.Q.items())[:200]:
-            qitems.append({"state": str(s), "best_action": ACTIONS[int(np.argmax(q))], "Q_values": list(np.round(q,3))})
+        for s, q in list(agent.Q.items())[:200]:
+            qitems.append(
+                {
+                    "state": str(s),
+                    "best_action": ACTIONS[int(np.argmax(q))],
+                    "Q_values": list(np.round(q, 3)),
+                }
+            )
         if qitems:
             st.dataframe(sanitize_df(pd.DataFrame(qitems)))
         else:
             st.info("Q-table is empty. Train the agent to populate Q values.")
 
         st.markdown("**Policy explanation:**")
-        st.write("For any state, the agent picks the action with highest Q-value. Use snapshots to compare policy changes across training runs.")
+        st.write(
+            "For any state, the agent picks the action with highest Q-value. Use snapshots to compare policy changes across training runs."
+        )
 
     ###############
     # Exports tab
     ###############
     with tabs[5]:
         st.subheader("Export logs and snapshots")
-        st.write("Export training histories, audit logs, and Q-table snapshots for reporting or offline analysis.")
+        st.write(
+            "Export training histories, audit logs, and Q-table snapshots for reporting or offline analysis."
+        )
         if hasattr(env, "history") and env.history:
             hist_df = pd.DataFrame(env.history)
-            st.markdown(get_table_download_link(hist_df, filename="env_history.csv"), unsafe_allow_html=True)
+            st.markdown(
+                get_table_download_link(hist_df, filename="env_history.csv"),
+                unsafe_allow_html=True,
+            )
         if st.session_state.audit_log:
-            st.markdown(get_table_download_link(pd.DataFrame(st.session_state.audit_log), filename="audit_log.csv"), unsafe_allow_html=True)
+            st.markdown(
+                get_table_download_link(
+                    pd.DataFrame(st.session_state.audit_log), filename="audit_log.csv"
+                ),
+                unsafe_allow_html=True,
+            )
         if st.button("Download Q-table (npz)"):
             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".npy")
             agent.snapshot(tmp.name)
@@ -863,18 +1083,25 @@ def main():
     ###############
     with tabs[6]:
         st.subheader("Audit Log")
-        st.write("Review a timestamped log of analyst interventions, feedback, and system events to maintain a transparent record of activity.")
+        st.write(
+            "Review a timestamped log of analyst interventions, feedback, and system events to maintain a transparent record of activity."
+        )
         if st.session_state.audit_log:
             df_audit = pd.DataFrame(st.session_state.audit_log)
             st.dataframe(sanitize_df(df_audit.sort_values("time", ascending=False)))
         else:
-            st.info("No audit events recorded yet. Analyst actions and episode completions will appear here.")
+            st.info(
+                "No audit events recorded yet. Analyst actions and episode completions will appear here."
+            )
 
     # -------------------------
     # Footer: Safety reminder
     # -------------------------
     st.markdown("---")
-    st.info("© 2025 Smart Honeypot Intelligence Powered by adaptive reinforcement learning and human-in-the-loop strategies to enhance security visibility and threat response - *Made By Amjad For Educational Purpose Only*.")
+    st.info(
+        "Copyright 2025 Smart Honeypot Intelligence. Powered by adaptive reinforcement learning and human-in-the-loop strategies to enhance security visibility and threat response - *Made By Amjad For Educational Purpose Only*."
+    )
+
 
 if __name__ == "__main__":
     main()

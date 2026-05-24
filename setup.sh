@@ -1,6 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Smart Honeypot Intelligence - Setup Script (Linux/Mac)
 # Automated setup for distribution package
+
+set -e
 
 echo ""
 echo "====================================="
@@ -15,18 +17,14 @@ if ! command -v python3 &> /dev/null; then
 fi
 
 echo "[1/3] Installing dependencies..."
-pip install -r requirements.txt
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to install dependencies"
-    exit 1
-fi
-echo "✓ Dependencies installed successfully"
+python3 -m pip install -r requirements.txt
+echo "[OK] Dependencies installed successfully"
 
 echo ""
 echo "[2/3] Verifying data files..."
 [ ! -d "data" ] && echo "Warning: data folder not found"
 [ ! -d "snapshots" ] && echo "Warning: snapshots folder not found"
-echo "✓ File verification complete"
+echo "[OK] File verification complete"
 
 echo ""
 echo "[3/3] Starting application..."

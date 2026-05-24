@@ -1,39 +1,50 @@
 # Smart Honeypot Intelligence
 
-A reinforcement learning-powered honeypot management system that adaptively responds to attacker behavior using Q-learning and human-in-the-loop (HITL) feedback.
+AI-powered smart honeypot research project using reinforcement learning, Q-learning, and human-in-the-loop feedback for adaptive cyber deception.
+
+This repository is the software and book companion package for **Smart Honeypot System Using Reinforcement Learning and Human Feedback**. It contains a Streamlit prototype, sample honeypot traffic data, screenshots, and supporting documentation for reproducing the core research workflow.
+
+## Screenshots
+
+![Smart Honeypot overview dashboard](screenshots/sample1.png)
+![Training and reward analytics](screenshots/sample2.png)
+![Traffic pattern visualizations](screenshots/sample3.png)
+![Agent and Q-table inspection](screenshots/sample4.png)
+![Human-in-the-loop feedback workflow](screenshots/sample5.png)
 
 ## Overview
 
-This platform leverages reinforcement learning to intelligently manage honeypot interactions with potential attackers. The system analyzes sessionized network activity, learns optimal response strategies, and enables security teams to provide real-time feedback to improve decision-making.
+Smart Honeypot Intelligence models honeypot interactions as sessionized episodes and trains a tabular Q-learning agent to choose adaptive deception actions. The system supports analyst feedback, reward tuning, Q-table inspection, traffic visualization, and exportable experiment artifacts.
 
-**Key Features:**
-- **Adaptive Defense**: Uses Q-learning to learn optimal honeypot response strategies
-- **Human-in-the-Loop**: Incorporates human expertise through real-time feedback mechanisms
-- **Session Analysis**: Automatically sessionizes network traffic by source IP
-- **Interactive Dashboard**: Streamlit-based web interface for monitoring and control
-- **Behavior Analytics**: Comprehensive visualization of attacker patterns and tactics
+## Key Features
+
+- **Adaptive cyber deception:** Uses Q-learning to adapt honeypot response behavior.
+- **Human-in-the-loop feedback:** Allows analysts to apply reward feedback and annotate training runs.
+- **Session analysis:** Groups honeypot events by source IP and configurable idle timeout.
+- **Interactive dashboard:** Provides Streamlit views for training, monitoring, policy inspection, and exports.
+- **Book companion docs:** Includes documentation for readers who want to reproduce or extend the research workflow.
 
 ## Architecture
 
 ### Core Components
 
-1. **Reinforcement Learning Agent**: Tabular Q-learning agent that learns optimal honeypot responses
-2. **Environment**: Simulates honeypot interactions with configurable reward functions
-3. **State Space**: Based on service type, attack intensity, and recency patterns
-4. **Action Space**: 
-   - `default`: Standard honeypot behavior
-   - `banner_variation`: Modify service banners
-   - `latency_add`: Introduce artificial delays
-   - `decoy_port_toggle`: Enable/disable decoy ports
-   - `error_style_flip`: Alter error message styles
+1. **Reinforcement Learning Agent:** Tabular Q-learning agent that learns state-action values.
+2. **Environment:** Simulates honeypot interactions from sessionized traffic logs.
+3. **State Space:** Uses service type, traffic intensity, and recency buckets.
+4. **Action Space:**
+   - `default`: Standard honeypot behavior.
+   - `banner_variation`: Modify service banners.
+   - `latency_add`: Introduce artificial delays.
+   - `decoy_port_toggle`: Enable or disable decoy ports.
+   - `error_style_flip`: Alter error-message style.
 
 ### Reward Structure
 
-The system uses a weighted reward function with three components:
+The reward function combines:
 
-- **Session Length (w1)**: Rewards keeping attackers engaged longer
-- **Follow-up Activity (w2)**: Encourages repeated interactions
-- **Service Diversity (w3)**: Promotes exploration across multiple services
+- **Session Length (`w1`):** Rewards keeping attackers engaged longer.
+- **Follow-up Activity (`w2`):** Encourages repeated interactions.
+- **Service Diversity (`w3`):** Rewards interaction across multiple services.
 
 ## Installation
 
@@ -44,49 +55,57 @@ The system uses a weighted reward function with three components:
 
 ### Setup
 
-1. Clone or download the project:
 ```bash
-cd project
+git clone https://github.com/jao399/smart-honeypot-intelligence.git
+cd smart-honeypot-intelligence
+python -m pip install -r requirements.txt
 ```
 
-2. Install dependencies:
+On Linux or macOS, you can also run:
+
 ```bash
-pip install -r requirements.txt
+chmod +x setup.sh
+./setup.sh
 ```
 
-3. Prepare your data:
-   - Place honeypot logs in `data/honeypots.json`
-   - Supported formats: JSON array or newline-delimited JSON (NDJSON)
+On Windows:
+
+```bat
+setup.bat
+```
 
 ## Usage
 
-### Starting the Application
-
 Run the Streamlit app:
+
 ```bash
 streamlit run app.py
 ```
 
-The application will open in your default web browser at `http://localhost:8501`
+The app opens at `http://localhost:8501`.
 
-### Data Format
+## Data Format
 
-Your honeypot data should include the following fields:
-- `timestamp`: ISO 8601 format timestamp
+Place honeypot logs in `data/honeypots.json`. The loader accepts a JSON array or newline-delimited JSON (NDJSON).
+
+Required fields:
+
+- `timestamp`: ISO 8601 timestamp
 - `src_ip`: Source IP address
 - `dest_ip`: Destination IP address
 - `src_port`: Source port number
 - `dest_port`: Destination port number
-- `protocol`: Protocol name (e.g., "ssh", "http", "ftp")
-- `action`: Action taken by the honeypot
+- `protocol`: Protocol name, such as `ssh`, `http`, `https`, or `ftp`
+- `action`: Honeypot action label
 
 Example:
+
 ```json
 [
   {
-    "timestamp": "2023-01-01T12:00:00.000",
+    "timestamp": "2026-01-20T10:15:23.123456",
     "src_ip": "192.168.1.100",
-    "dest_ip": "10.0.0.1",
+    "dest_ip": "10.0.0.5",
     "src_port": 54321,
     "dest_port": 22,
     "protocol": "ssh",
@@ -95,113 +114,52 @@ Example:
 ]
 ```
 
-### Configuration
-
-Use the sidebar to configure:
-
-**Dataset & Environment:**
-- Dataset path or upload custom data
-- Session gap (minutes of inactivity before new session)
-
-**RL Hyperparameters:**
-- Learning Rate (α): 0.01 - 1.0
-- Discount Factor (γ): 0.0 - 0.999
-- Exploration Rate (ε): 0.0 - 1.0
-- Episodes per training run
-
-**Reward Weights:**
-- Adjust w1, w2, w3 to prioritize different objectives
-
-### Training the Agent
-
-1. Navigate to the **Training** tab
-2. Configure hyperparameters in the sidebar
-3. Click "Train Agent" to run training episodes
-4. Monitor training progress and reward convergence
-5. Provide human feedback during training (optional)
-
-### Saving and Loading
-
-**Save Agent:**
-1. Enter a snapshot name in the sidebar
-2. Click "Save snapshot"
-3. Agent state saved to `snapshots/` directory
-
-**Load Agent:**
-1. Enter the snapshot name
-2. Click "Load snapshot"
-3. Previously trained agent is restored
-
-### Analysis and Monitoring
-
-The dashboard provides multiple tabs:
-
-- **Overview**: Dataset statistics and session distribution
-- **Training**: Agent training interface with real-time metrics
-- **Analysis**: Behavior patterns, attack timelines, and service distribution
-- **Q-Table Explorer**: Inspect learned state-action values
-- **HITL Feedback**: Provide human feedback on agent decisions
-
 ## Project Structure
 
+```text
+smart-honeypot-intelligence/
+|-- app.py
+|-- requirements.txt
+|-- setup.sh
+|-- setup.bat
+|-- data/
+|   `-- honeypots.json
+|-- docs/
+|   |-- README.md
+|   |-- experiment-guide.md
+|   `-- dataset-format.md
+|-- screenshots/
+|   |-- sample1.png
+|   |-- sample2.png
+|   |-- sample3.png
+|   |-- sample4.png
+|   `-- sample5.png
+|-- CITATION.cff
+|-- CHANGELOG.md
+|-- LICENSE
+`-- README.md
 ```
-project/
-├── app.py                 # Main Streamlit application
-├── requirements.txt       # Python dependencies
-├── README.md             # This file
-├── data/                 # Data directory
-│   ├── honeypots.json    # Main honeypot log data
-│   └── sample.json       # Sample data
-└── snapshots/            # Saved agent snapshots
-    ├── agent_snapshot.npy
-    └── agent_snapshot1.npy
-```
 
-## Technical Details
+## Book Companion Material
 
-### Sessionization
+The `docs/` folder contains companion notes for readers of **Smart Honeypot System Using Reinforcement Learning and Human Feedback**:
 
-Network events are grouped into sessions based on:
-- Source IP address
-- Configurable idle timeout (default: 15 minutes)
+- [Book companion index](docs/README.md)
+- [Experiment guide](docs/experiment-guide.md)
+- [Dataset format](docs/dataset-format.md)
 
-### State Representation
+## Research Scope
 
-States are tuples of `(service, intensity, recency)`:
-- **service**: Service type (ssh, http, ftp, other)
-- **intensity**: Request frequency (low/med/high)
-- **recency**: Time since last seen (new/warm/frequent)
+This project is a research prototype. It demonstrates how reinforcement learning and analyst feedback can be combined with honeypot telemetry to explore adaptive deception workflows. It is not a production intrusion detection system and should only be deployed in authorized lab or research environments.
 
-### Q-Learning Algorithm
+## Citation
 
-- **Algorithm**: Tabular Q-learning
-- **Update Rule**: Q(s,a) ← Q(s,a) + α[r + γ·max Q(s',a') - Q(s,a)]
-- **Exploration**: ε-greedy policy
-
-## Export Options
-
-All tabs support data export:
-- **CSV**: Tables and logs
-- **PNG**: Visualizations and charts
-- **NPY**: Agent snapshots (Q-table)
-
-## Contributing
-
-This is a Final Year Project (FYP). For questions or contributions, please contact the project maintainer.
+If you use this project in academic work, cite it using the metadata in [CITATION.cff](CITATION.cff).
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-Built with:
-- [Streamlit](https://streamlit.io/) - Web application framework
-- [NumPy](https://numpy.org/) - Numerical computing
-- [Pandas](https://pandas.pydata.org/) - Data analysis
-- [Plotly](https://plotly.com/) - Interactive visualizations
-- [Matplotlib](https://matplotlib.org/) & [Seaborn](https://seaborn.pydata.org/) - Statistical graphics
-
----
-
-**Note**: This system is designed for research and educational purposes. Always ensure proper authorization before deploying honeypots in production environments.
+Built with Streamlit, NumPy, Pandas, Plotly, Matplotlib, and Seaborn.

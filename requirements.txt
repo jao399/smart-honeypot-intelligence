@@ -1,4 +1,4 @@
-# Requirements for Smart Honeypot Intelligence app
+# Core requirements for the Smart Honeypot Intelligence app
 # Tested with Python 3.8+ (Python 3.11 recommended)
 
 streamlit>=1.20.0
