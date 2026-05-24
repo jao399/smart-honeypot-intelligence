@@ -2,11 +2,13 @@
 
 ## Working Title
 
-**Smart Honeypot Systems Using Reinforcement Learning and Human Feedback**
+**Smart Honeypots with Reinforcement Learning: Building Adaptive Cyber Deception Systems with Human Feedback**
 
 ## Book Overview
 
 This book presents a practical research-driven approach to building adaptive honeypot systems with reinforcement learning and human-in-the-loop feedback. Traditional honeypots are valuable for observing attacker behavior, but many remain static: they collect activity, expose decoy services, and generate logs without adapting meaningfully to attacker patterns.
+
+The manuscript will be developed as a book-native work, not as a direct republication of the thesis PDF. University declaration pages, submission language, placeholder acknowledgements, and thesis-specific framing will be removed or rewritten before publication.
 
 The book introduces a smarter model for cyber deception. It explains how honeypot interactions can be represented as sessionized episodes, how attacker activity can be converted into compact machine learning states, and how a Q-learning agent can learn defensive actions such as banner variation, latency changes, decoy-port toggling, and error-style adjustments. It also shows where human analyst feedback belongs in the loop, allowing expert judgment to influence reward shaping, policy evolution, and post-incident interpretation.
 
@@ -62,7 +64,7 @@ Covers responsible honeypot use, authorization, data privacy, isolation, legal c
 
 ### Chapter 10: Future Directions
 
-Explores extensions such as deep reinforcement learning, multi-agent simulation, richer attacker modeling, real-time telemetry pipelines, SIEM integration, and production-grade experimentation.
+Explores extensions such as deep reinforcement learning, including Double DQN, Dueling DQN, and PPO, multi-agent simulation, richer attacker modeling, real-time telemetry pipelines, SIEM integration, and production-grade experimentation.
 
 ## What Makes This Book Unique
 
@@ -93,7 +95,7 @@ Included materials:
 
 ## Author Bio
 
-Amjad is a cybersecurity researcher and developer focused on AI-assisted cyber defense, honeypot systems, reinforcement learning, and human-in-the-loop security workflows. His work explores how machine learning can improve adaptive cyber deception while keeping human analyst judgment central to system design and evaluation.
+Amgad Hussein Alzomi is a cybersecurity researcher and developer focused on AI-assisted cyber defense, honeypot systems, reinforcement learning, and human-in-the-loop security workflows. His work explores how machine learning can improve adaptive cyber deception while keeping human analyst judgment central to system design and evaluation.
 
 This book builds on his thesis, **Smart Honeypot System Using Reinforcement Learning and Human Feedback**, submitted for the Master of Science in Cyber Security at Asia Pacific University of Technology & Innovation.
 
@@ -129,4 +131,4 @@ Most cybersecurity books on honeypots focus on deployment, monitoring, or threat
 
 ## Manuscript Status
 
-The core research, thesis foundation, and companion repository are already prepared. The next development stage is converting the thesis and prototype documentation into a structured book manuscript with expanded explanations, diagrams, exercises, and reproducible experiments.
+The core research, thesis foundation, and companion repository are already prepared. The next development stage is converting the thesis and prototype documentation into a structured book manuscript with expanded explanations, diagrams, exercises, reproducible experiments, clearer result tables, and practical reader labs.

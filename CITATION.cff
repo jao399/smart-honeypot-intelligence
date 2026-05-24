@@ -3,7 +3,7 @@ message: "If you use this research software, please cite it using these metadata
 title: "Smart Honeypot Intelligence"
 type: software
 authors:
-  - name: "Amjad"
+  - name: "Amgad Hussein Alzomi"
 repository-code: "https://github.com/jao399/smart-honeypot-intelligence"
 url: "https://github.com/jao399/smart-honeypot-intelligence"
 abstract: "AI-powered smart honeypot research project using reinforcement learning, Q-learning, and human-in-the-loop feedback for adaptive cyber deception."
@@ -25,7 +25,7 @@ references:
   - type: thesis
     title: "Smart Honeypot System Using Reinforcement Learning and Human Feedback"
     authors:
-      - name: "Amjad"
+      - name: "Amgad Hussein Alzomi"
     institution:
       name: "Asia Pacific University of Technology & Innovation"
     year: 2025
